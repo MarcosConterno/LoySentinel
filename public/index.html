@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LoySentinel</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --text: #e7eefc;
+      --muted: #a9b7d6;
+      --line: rgba(255, 255, 255, .08);
+
+      --ok-bg: #dcfce7;
+      --ok-tx: #166534;
+      --ok-br: #86efac;
+      --no-bg: #fee2e2;
+      --no-tx: #991b1b;
+      --no-br: #fca5a5;
+      --mid-bg: #fef9c3;
+      --mid-tx: #854d0e;
+      --mid-br: #fde047;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: radial-gradient(1200px 600px at 10% 10%, #1b2c55 0%, transparent 60%),
+        radial-gradient(900px 500px at 80% 20%, #2b194e 0%, transparent 55%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .wrap { max-width: 1100px; margin: 28px auto 50px; padding: 0 18px; }
+
+    .brand h1 { margin: 0; font-size: 20px; letter-spacing: .4px; }
+
+    .brand p { margin: 6px 0 0; color: var(--muted); font-weight: 650; font-size: 13px; }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .03));
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 12px 45px rgba(0, 0, 0, .28);
+      overflow: hidden;
+      margin-top: 16px;
+    }
+
+    .inner { padding: 16px; background: rgba(15, 26, 48, .6); backdrop-filter: blur(8px); }
+
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    .col { flex: 1; min-width: 220px; }
+
+    label {
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--muted);
+      letter-spacing: .3px;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    input {
+      width: 100%;
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid var(--line);
+      color: var(--text);
+      padding: 12px 12px;
+      border-radius: 12px;
+      outline: none;
+      font-weight: 700;
+    }
+
+    input:focus {
+      border-color: rgba(255, 255, 255, .18);
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, .12);
+    }
+
+    .btn {
+      background: linear-gradient(180deg, rgba(99, 102, 241, .95), rgba(79, 70, 229, .95));
+      border: 1px solid rgba(255, 255, 255, .12);
+      padding: 12px 16px;
+      border-radius: 14px;
+      color: white;
+      font-weight: 950;
+      cursor: pointer;
+      min-width: 170px;
+    }
+
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    .btnSecondary {
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid var(--line);
+      padding: 12px 16px;
+      border-radius: 14px;
+      color: var(--text);
+      font-weight: 950;
+      cursor: pointer;
+      min-width: 170px;
+    }
+
+    .muted { color: var(--muted); font-weight: 650; }
+
+    .divider { height: 1px; background: var(--line); margin: 14px 0; }
+
+    /* progress */
+    .progressWrap { display: none; margin-top: 12px; gap: 10px; align-items: center; }
+
+    .progressBar {
+      flex: 1;
+      height: 12px;
+      background: rgba(255, 255, 255, .08);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    .progressBar>div {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(34, 197, 94, .95), rgba(99, 102, 241, .95));
+      transition: width .25s ease;
+    }
+
+    .progressPct { width: 58px; text-align: right; font-weight: 950; font-variant-numeric: tabular-nums; }
+
+    /* badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-weight: 950;
+      font-size: 13px;
+      margin-right: 10px;
+      margin-top: 8px;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, .06);
+    }
+
+    .badge.ok { background: var(--ok-bg); color: var(--ok-tx); border-color: var(--ok-br); }
+    .badge.no { background: var(--no-bg); color: var(--no-tx); border-color: var(--no-br); }
+    .badge.mid { background: var(--mid-bg); color: var(--mid-tx); border-color: var(--mid-br); }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      background: rgba(255, 255, 255, .06);
+      font-weight: 850;
+      font-size: 12px;
+      margin-right: 8px;
+      margin-top: 8px;
+    }
+
+    /* screenshot */
+    .grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 14px; }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+
+    .shotBox {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .04);
+      border-radius: 16px;
+      overflow: hidden;
+      padding: 10px;
+      min-height: 80px;
+    }
+
+    .shot { width: 100%; border-radius: 12px; display: block; }
+
+    /* states */
+    .states {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    @media (max-width: 980px) { .states { grid-template-columns: 1fr; } }
+
+    .stateItem {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .04);
+      padding: 12px;
+    }
+
+    .stateHeader { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .stateTitle { font-weight: 950; letter-spacing: .2px; }
+
+    /* tooltips */
+    .eviRow { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+    .eviLabel { font-weight: 950; }
+
+    .infoDot {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      background: rgba(255, 255, 255, .08);
+      color: var(--text);
+      font-weight: 950;
+      font-size: 11px;
+      line-height: 16px;
+      text-align: center;
+      cursor: help;
+      position: relative;
+      flex: 0 0 auto;
+    }
+
+    .infoDot::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 135%;
+      width: min(420px, 70vw);
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      background: #0b0f1a;
+      color: #f5f7ff;
+      font-weight: 750;
+      font-size: 12px;
+      line-height: 1.35;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease;
+      z-index: 9999;
+      white-space: normal;
+    }
+
+    .infoDot::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 118%;
+      border: 7px solid transparent;
+      border-top-color: #0b0f1a;
+      opacity: 0;
+      transition: opacity 120ms ease;
+      z-index: 9999;
+    }
+
+    .infoDot:hover::after, .infoDot:hover::before { opacity: 1; }
+
+    /* json viewer (NEW: estilo jsonviewer.stack.hu) */
+    .jsonBox {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .04);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .jsonTop {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, .03);
+    }
+
+    .jsonBody {
+      padding: 10px 12px;
+      max-height: 520px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .jv-line { white-space: pre; }
+    .jv-indent { display: inline-block; width: 14px; }
+    .jv-toggle {
+      display: inline-block;
+      width: 14px;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+      color: var(--muted);
+    }
+    .jv-toggle:hover { color: #fff; }
+
+    .jv-brace { color: var(--muted); }
+    .jv-colon { color: var(--muted); }
+
+    .k { color: #93c5fd; }
+    .s { color: #86efac; }
+    .n { color: #fca5a5; }
+    .b { color: #fde047; }
+    .null { color: #a78bfa; }
+
+    .smallNote { font-size: 12px; color: var(--muted); font-weight: 650; margin-top: 8px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <h1>LoySentinel</h1>
+      <p>Scanner de login/captcha/anti-automação (sem efetuar login)</p>
+    </div>
+
+    <div class="card">
+      <div class="inner">
+        <div class="row">
+          <div class="col">
+            <label>URL</label>
+            <input id="url" placeholder="https://exemplo.com/login" />
+          </div>
+          <div class="col">
+            <label>Login (opcional)</label>
+            <input id="login" placeholder="(não será usado para logar)" />
+          </div>
+          <div class="col">
+            <label>Senha (opcional)</label>
+            <input id="senha" type="password" placeholder="(não será usada para logar)" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px;">
+          <button class="btn" id="btnRun">Analisar</button>
+          <button class="btnSecondary" id="btnReset">Limpar</button>
+          <button class="btnSecondary" id="btnPdfTop">Baixar PDF</button>
+          <span id="status" class="muted"></span>
+        </div>
+
+        <div class="progressWrap" id="progressWrap">
+          <div class="progressBar">
+            <div id="progressFill"></div>
+          </div>
+          <div class="progressPct" id="progressPct">0%</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="card">
+          <div class="inner">
+            <b>Modos detectados (abas/alternativas)</b>
+            <div class="smallNote">
+              Tentamos identificar até 1 alternativa (ex.: Pessoa Física / Pessoa Jurídica) sem deixar o scan infinito.
+            </div>
+            <div class="states" id="states"></div>
+          </div>
+        </div>
+
+        <div id="summaryBadges"></div>
+        <div id="providers"></div>
+
+        <div class="grid" style="margin-top:14px;">
+          <div class="card">
+            <div class="inner">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                <b>Screenshot (Headed / Default)</b>
+                <span class="muted">1 print por análise</span>
+              </div>
+              <div style="height:10px;"></div>
+              <div class="shotBox" id="mainShot">
+                <div class="muted">Nenhum print ainda.</div>
+              </div>
+              <div class="smallNote">
+                Observação: em headless não exibimos screenshot.
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="inner">
+              <div class="jsonBox">
+                <div class="jsonTop">
+                  <b>JSON (visualização)</b>
+                  <div style="display:flex; gap:8px;">
+                    <button class="btnSecondary" id="btnCopyJson" style="min-width:auto;padding:10px 12px;">Copiar</button>
+                    <button class="btnSecondary" id="btnExpandAll" style="min-width:auto;padding:10px 12px;">Expandir</button>
+                    <button class="btnSecondary" id="btnCollapseAll" style="min-width:auto;padding:10px 12px;">Recolher</button>
+                  </div>
+                </div>
+                <div class="jsonBody" id="jsonViewer">
+                  <div class="muted">Sem dados.</div>
+                </div>
+              </div>
+              <div class="smallNote">
+                Visualizador estilo jsonviewer.stack.hu (árvore com expand/collapse).
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let lastJson = null;
+
+    // ===== progress =====
+    let progressTimer = null;
+    let progressValue = 0;
+
+    function startProgress() {
+      progressValue = 0;
+      $("progressWrap").style.display = "flex";
+      setProgress(0);
+      if (progressTimer) clearInterval(progressTimer);
+
+      progressTimer = setInterval(() => {
+        const cap = 92;
+        if (progressValue < cap) {
+          const step = progressValue < 40 ? 3 : (progressValue < 70 ? 2 : 1);
+          progressValue = Math.min(cap, progressValue + step);
+          setProgress(progressValue);
+        }
+      }, 220);
+    }
+
+    function finishProgress() {
+      if (progressTimer) clearInterval(progressTimer);
+      progressTimer = null;
+      setProgress(100);
+      setTimeout(() => $("progressWrap").style.display = "none", 450);
+    }
+
+    function setProgress(pct) {
+      $("progressFill").style.width = pct + "%";
+      $("progressPct").textContent = pct + "%";
+    }
+
+    // ===== helpers =====
+    function escapeHtml(s) {
+      return String(s || "")
+        .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    function tip(text) {
+      const safe = String(text || "").replaceAll('"', "&quot;");
+      return `<span class="infoDot" data-tip="${safe}">i</span>`;
+    }
+
+    // ===== summary =====
+    function badgeWithHint(label, value, hint, yesClass = "ok", noClass = "no") {
+      const cls = value ? yesClass : noClass;
+      const txt = value ? "SIM" : "NÃO";
+      return `<span class="badge ${cls}">${label}: ${txt} ${tip(hint)}</span>`;
+    }
+
+    function renderSummary(data) {
+      const s = data.summary || {};
+
+      const existsCaptcha = typeof s.captchaOnScreen === "boolean" ? s.captchaOnScreen : !!s.captchaLikely;
+      const hiddenCaptcha = !!s.captchaOnlyWhenBotLike;
+
+      const needsVirtualKeyboard = !!s.virtualKeyboardLikely || !!s.typingBlockedLikely;
+
+      let risk = "Baixo", riskClass = "ok";
+      if (!!s.antiAutomationLikely || needsVirtualKeyboard || hiddenCaptcha) {
+        risk = "Alto"; riskClass = "no";
+      } else if (existsCaptcha) {
+        risk = "Médio"; riskClass = "mid";
+      }
+
+      const hintCaptcha = existsCaptcha
+        ? "Captcha/challenge detectado na tela (Default/Headed). Pode impedir automação dependendo do fluxo."
+        : "Não detectamos captcha/challenge na tela atual. Pode aparecer em telas seguintes ou sob heurísticas (IP, fingerprint, tentativas).";
+
+      const hintHidden = hiddenCaptcha
+        ? "Indício forte: captcha/challenge apareceu no headless e não no headed. Normalmente surge quando o acesso 'parece robô'."
+        : "Sem evidência de captcha condicionado a bot. (Não é garantia.)";
+
+      const hintVK = needsVirtualKeyboard
+        ? "Sinais de teclado virtual/bloqueio detectados (readonly/inputmode/keypad/overlay). Em RPA, keyboard.type/set value tende a falhar."
+        : "Sem sinais fortes de teclado virtual/bloqueio nesta tela após foco/click.";
+
+      const hintRisk =
+        risk === "Alto"
+          ? "Risco alto: anti-automação e/ou teclado virtual/challenge condicionado. Headless/RPA tende a falhar sem medidas avançadas."
+          : risk === "Médio"
+            ? "Risco médio: captcha presente. Pode exigir tratamento de challenge."
+            : "Risco baixo: sem sinais fortes nesta tela. Ainda pode haver bloqueios em etapas seguintes.";
+
+      const bCaptcha = badgeWithHint("Existe Captcha?", existsCaptcha, hintCaptcha);
+      const bHidden = badgeWithHint("Captcha escondido?", hiddenCaptcha, hintHidden);
+      const bVK = badgeWithHint("Necessário teclado virtual?", needsVirtualKeyboard, hintVK);
+      const bRisk = `<span class="badge ${riskClass}">Risco de automação? ${risk} ${tip(hintRisk)}</span>`;
+
+      $("summaryBadges").innerHTML = [bCaptcha, bHidden, bVK, bRisk].join("");
+
+      const prov = (s.providers || []);
+      $("providers").innerHTML = prov.length
+        ? `<div style="margin-top:8px;">${prov.map(p => `<span class="tag">${escapeHtml(p)}</span>`).join("")}</div>`
+        : `<div class="muted" style="margin-top:8px;">Nenhum provedor de captcha detectado.</div>`;
+    }
+
+    // ===== screenshot =====
+    function renderMainScreenshot(data) {
+      const sc = data.screenshot || {};
+      const box = $("mainShot");
+      if (sc.ok && sc.data && sc.format) {
+        box.innerHTML = `<img class="shot" src="${sc.format},${sc.data}" alt="Screenshot" />`;
+        return;
+      }
+      box.innerHTML = `<div class="muted">${escapeHtml(sc.reason || "Screenshot indisponível.")}</div>`;
+    }
+
+    // ===== evidence =====
+    function evidenceBlock(state) {
+      const e = state.captcha?.evidence || {};
+      const hints = (e.challengeHints || []).slice(0, 6);
+      const domP = (e.domProviders || []).join(", ");
+      const netP = (e.networkProviders || []).join(", ");
+      const vk = state.typing?.virtualKeyboardLikely ? "SIM" : "NÃO";
+      const vkHints = (state.typing?.hints || []).slice(0, 6).join(" | ");
+
+      const info = (text) => `<span class="infoDot" data-tip="${escapeHtml(text)}">i</span>`;
+
+      return `
+        <div class="muted" style="margin-top:8px;">
+          <div><b>Título:</b> ${escapeHtml(state.title || "-")}</div>
+
+          <div class="eviRow">
+            <span class="eviLabel">Providers:</span>
+            ${info("Sistemas de CAPTCHA/anti-bot detectados (reCAPTCHA, hCaptcha, Turnstile...).")}
+            <span>${state.captcha?.providers?.length ? state.captcha.providers.map(escapeHtml).join(", ") : "-"}</span>
+          </div>
+
+          <div class="eviRow">
+            <span class="eviLabel">DOM:</span>
+            ${info("Evidências no HTML/DOM (scripts, widgets, classes/ids) que indicam CAPTCHA na página.")}
+            <span>${escapeHtml(domP || "-")}</span>
+          </div>
+
+          <div class="eviRow">
+            <span class="eviLabel">Network:</span>
+            ${info("Evidências em requisições de rede para serviços de CAPTCHA (sinal forte).")}
+            <span>${escapeHtml(netP || "-")}</span>
+          </div>
+
+          <div class="eviRow">
+            <span class="eviLabel">Hints:</span>
+            ${info("Textos/sinais no conteúdo sugerindo bloqueio/challenge.")}
+            <span>${hints.length ? hints.map(escapeHtml).join(" | ") : "-"}</span>
+          </div>
+
+          <div class="eviRow">
+            <span class="eviLabel">Teclado virtual:</span>
+            ${info("Sinais como readonly/inputmode=none/keypad/overlay com botões numéricos após focar o campo.")}
+            <span>${vk}${vkHints ? ` — ${escapeHtml(vkHints)}` : ""}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // ===== states =====
+    function renderStates(data) {
+      const wrap = $("states");
+      wrap.innerHTML = "";
+
+      const headedStates = data?.passes?.headed?.states || [];
+      const headlessStates = data?.passes?.headless?.states || [];
+
+      const addGroup = (title, arr) => {
+        if (!arr.length) return;
+
+        arr.forEach((st) => {
+          const item = document.createElement("div");
+          item.className = "stateItem";
+          item.innerHTML = `
+            <div class="stateHeader" style="flex-direction:column; align-items:flex-start; gap:6px;">
+              <div class="muted" style="font-weight:900;">${escapeHtml(title)}</div>
+
+              <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <div class="stateTitle">${escapeHtml(st.mode || "Modo")}</div>
+                <div>
+                  <span class="badge ${st.login?.likelyLogin ? "ok" : "no"}">
+                    Login: ${st.login?.likelyLogin ? "SIM" : "NÃO"}
+                  </span>
+                  <span class="badge ${st.captcha?.present ? "no" : "ok"}">
+                    Captcha: ${st.captcha?.present ? "SIM" : "NÃO"}
+                  </span>
+                </div>
+              </div>
+            </div>
+            ${evidenceBlock(st)}
+          `;
+          wrap.appendChild(item);
+        });
+      };
+
+      addGroup("Headed", headedStates);
+      addGroup("Headless (sem screenshot)", headlessStates);
+
+      const errors = [
+        ...(data?.passes?.headed?.errors || []),
+        ...(data?.passes?.headless?.errors || [])
+      ].filter(Boolean);
+
+      if (errors.length) {
+        const err = document.createElement("div");
+        err.className = "stateItem";
+        err.innerHTML = `
+          <b>Avisos</b>
+          <div class="muted" style="margin-top:6px; white-space:pre-wrap;">
+            ${escapeHtml(errors.slice(0, 6).join("\n\n"))}
+          </div>
+        `;
+        wrap.appendChild(err);
+      }
+    }
+
+    // ===== JSON viewer (NEW) =====
+    let _jvAllToggles = [];
+
+    function typeOf(v) {
+      if (v === null) return "null";
+      if (Array.isArray(v)) return "array";
+      return typeof v;
+    }
+
+    function makeSpan(cls, html) {
+      const sp = document.createElement("span");
+      sp.className = cls;
+      sp.innerHTML = html;
+      return sp;
+    }
+
+    function valueNode(v) {
+      const t = typeOf(v);
+      if (t === "string") return makeSpan("s", `"${escapeHtml(v)}"`);
+      if (t === "number") return makeSpan("n", String(v));
+      if (t === "boolean") return makeSpan("b", String(v));
+      if (t === "null") return makeSpan("null", "null");
+      return makeSpan("muted", escapeHtml(String(v)));
+    }
+
+    function renderJsonViewer(obj) {
+      const root = $("jsonViewer");
+      root.innerHTML = "";
+      _jvAllToggles = [];
+
+      const container = document.createElement("div");
+      container.appendChild(buildTree(obj, 0, true, true));
+      root.appendChild(container);
+    }
+
+    function buildTree(value, depth, isLast, openByDefault) {
+      const t = typeOf(value);
+
+      // primitives
+      if (t !== "object" && t !== "array") {
+        const line = document.createElement("div");
+        line.className = "jv-line";
+        for (let i = 0; i < depth; i++) line.appendChild(makeSpan("jv-indent", ""));
+        line.appendChild(valueNode(value));
+        return line;
+      }
+
+      const isArray = t === "array";
+      const keys = isArray ? value.map((_, i) => i) : Object.keys(value || {});
+      const openBrace = isArray ? "[" : "{";
+      const closeBrace = isArray ? "]" : "}";
+
+      const wrap = document.createElement("div");
+
+      // header line
+      const header = document.createElement("div");
+      header.className = "jv-line";
+
+      for (let i = 0; i < depth; i++) header.appendChild(makeSpan("jv-indent", ""));
+
+      const toggle = document.createElement("span");
+      toggle.className = "jv-toggle";
+      toggle.textContent = openByDefault ? "▾" : "▸";
+      header.appendChild(toggle);
+
+      header.appendChild(makeSpan("jv-brace", openBrace + " "));
+      header.appendChild(makeSpan("muted", isArray ? `${keys.length} items` : `${keys.length} keys`));
+      header.appendChild(makeSpan("jv-brace", " " + closeBrace));
+      wrap.appendChild(header);
+
+      // children container
+      const children = document.createElement("div");
+      children.style.display = openByDefault ? "block" : "none";
+      wrap.appendChild(children);
+
+      // closing line
+      const closing = document.createElement("div");
+      closing.className = "jv-line";
+      for (let i = 0; i < depth; i++) closing.appendChild(makeSpan("jv-indent", ""));
+      closing.appendChild(makeSpan("jv-brace", closeBrace + (isLast ? "" : ",")));
+      // closing fica visível sempre (como jsonviewer)
+      wrap.appendChild(closing);
+
+      _jvAllToggles.push({ toggle, children });
+
+      // click toggle
+      toggle.addEventListener("click", () => {
+        const isOpen = children.style.display !== "none";
+        children.style.display = isOpen ? "none" : "block";
+        toggle.textContent = isOpen ? "▸" : "▾";
+      });
+
+      // build children lines
+      keys.forEach((k, idx) => {
+        const lastChild = idx === keys.length - 1;
+        const row = document.createElement("div");
+        row.className = "jv-line";
+
+        for (let i = 0; i < depth + 1; i++) row.appendChild(makeSpan("jv-indent", ""));
+
+        if (!isArray) {
+          row.appendChild(makeSpan("k", `"${escapeHtml(k)}"`));
+          row.appendChild(makeSpan("jv-colon", ": "));
+        } else {
+          row.appendChild(makeSpan("muted", `${k}: `));
+        }
+
+        const childVal = isArray ? value[k] : value[k];
+
+        const childType = typeOf(childVal);
+        if (childType === "object" || childType === "array") {
+          // node wrapper for nested objects/arrays
+          const nested = buildTree(childVal, depth + 1, lastChild, depth < 1); // abre os primeiros níveis
+          // nested retorna um div com header/children/closing
+          // aqui queremos inserir inline, então só anexamos
+          row.appendChild(nested);
+        } else {
+          row.appendChild(valueNode(childVal));
+          row.appendChild(makeSpan("jv-brace", lastChild ? "" : ","));
+        }
+
+        children.appendChild(row);
+      });
+
+      return wrap;
+    }
+
+    function expandAll() {
+      _jvAllToggles.forEach(({ toggle, children }) => {
+        children.style.display = "block";
+        toggle.textContent = "▾";
+      });
+    }
+
+    function collapseAll() {
+      _jvAllToggles.forEach(({ toggle, children }) => {
+        children.style.display = "none";
+        toggle.textContent = "▸";
+      });
+    }
+
+    // ===== scan =====
+    async function scan(payload) {
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Falha no scan");
+      return data;
+    }
+
+    async function analyze() {
+      const url = $("url").value.trim();
+      if (!url) { $("status").textContent = "Informe uma URL."; return; }
+
+      $("btnRun").disabled = true;
+      $("status").textContent = "Analisando…";
+      startProgress();
+
+      try {
+        const data = await scan({
+          url,
+          login: $("login").value || "",
+          senha: $("senha").value || ""
+        });
+
+        finishProgress();
+        $("status").textContent = `Concluído ✅ (${data.timingMs || "-"} ms)`;
+
+        renderStates(data);
+        renderSummary(data);
+        renderMainScreenshot(data);
+        renderJsonViewer(data); // agora mostra o payload completo (como jsonviewer)
+
+        lastJson = data;
+      } catch (e) {
+        finishProgress();
+        $("status").textContent = `Falha: ${e?.message || e}`;
+        $("summaryBadges").innerHTML = `<span class="badge no">Erro</span>`;
+        $("providers").innerHTML = `<div class="muted">${escapeHtml(e?.message || String(e))}</div>`;
+        $("mainShot").innerHTML = `<div class="muted">Nenhum print (erro na análise).</div>`;
+        $("states").innerHTML = "";
+        $("jsonViewer").innerHTML = `<div class="muted">Sem dados.</div>`;
+        lastJson = null;
+      } finally {
+        $("btnRun").disabled = false;
+      }
+    }
+
+    $("btnRun").addEventListener("click", analyze);
+
+    // ✅ PDF: chama o backend (pdfkit) e baixa
+    $("btnPdfTop").addEventListener("click", async () => {
+      if (!lastJson) { $("status").textContent = "Faça uma análise antes de gerar o PDF."; return; }
+
+      try {
+        $("status").textContent = "Gerando PDF…";
+        const res = await fetch("/api/pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(lastJson),
+        });
+
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          throw new Error(`HTTP ${res.status} ${txt}`);
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "LoySentinel-Report.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        URL.revokeObjectURL(url);
+        $("status").textContent = "PDF baixado ✅";
+        setTimeout(() => $("status").textContent = "", 1200);
+      } catch (e) {
+        $("status").textContent = `Falha ao gerar PDF: ${e?.message || e}`;
+      }
+    });
+
+    $("btnReset").addEventListener("click", () => {
+      $("url").value = "";
+      $("login").value = "";
+      $("senha").value = "";
+      $("status").textContent = "";
+      $("summaryBadges").innerHTML = "";
+      $("providers").innerHTML = "";
+      $("mainShot").innerHTML = `<div class="muted">Nenhum print ainda.</div>`;
+      $("states").innerHTML = "";
+      $("jsonViewer").innerHTML = `<div class="muted">Sem dados.</div>`;
+      lastJson = null;
+    });
+
+    $("btnCopyJson").addEventListener("click", async () => {
+      if (!lastJson) return;
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(lastJson, null, 2));
+        $("status").textContent = "JSON copiado ✅";
+        setTimeout(() => { $("status").textContent = ""; }, 1200);
+      } catch {
+        $("status").textContent = "Não foi possível copiar.";
+      }
+    });
+
+    $("btnExpandAll").addEventListener("click", expandAll);
+    $("btnCollapseAll").addEventListener("click", collapseAll);
+  </script>
+</body>
+
+</html>

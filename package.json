@@ -1,0 +1,23 @@
+{
+  "name": "login-page-scanner",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "pdfkit": "^0.17.2",
+    "playwright": "^1.58.2"
+  },
+  "directories": {
+    "test": "tests"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  },
+  "description": ""
+}
