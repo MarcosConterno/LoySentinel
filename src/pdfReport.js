@@ -29,13 +29,36 @@ function pickOneScreenshot(result) {
   return { label: "Sem screenshot", screenshot: null };
 }
 
-function drawBadge(doc, label, value, x, y, w) {
+// ✅ NOVO: badge com tema (ok/no/mid) e melhor acabamento
+function drawBadge(doc, label, value, x, y, w, opts = {}) {
   const isYes = !!value;
-  doc.roundedRect(x, y, w, 18, 9).fill(isYes ? "#d1fae5" : "#fee2e2");
+  const theme = opts.theme || "normal"; // "normal" | "dangerYes"
+  const treatYesAsDanger = theme === "dangerYes";
+
+  // cores (SIM ou NÃO) conforme tema
+  const isDanger = treatYesAsDanger ? isYes : !isYes;
+
+  const bg = isDanger ? "#fee2e2" : "#d1fae5";   // vermelho / verde
+  const br = isDanger ? "#fca5a5" : "#86efac";   // borda
+  const tx = isDanger ? "#991b1b" : "#065f46";   // texto
+
+  // sombra leve (simulada): desenha 1 retângulo “por baixo”
+  doc.save();
+  doc.roundedRect(x + 1.5, y + 1.5, w, 18, 9).fillOpacity(0.10).fill("#000000");
+  doc.restore();
+
+  // card do badge
+  doc.save();
+  doc.roundedRect(x, y, w, 18, 9).fill(bg);
+  doc.lineWidth(1).strokeColor(br).roundedRect(x, y, w, 18, 9).stroke();
+
+  // texto centralizado verticalmente
   doc
-    .fillColor(isYes ? "#065f46" : "#991b1b")
+    .fillColor(tx)
     .fontSize(10)
     .text(`${label}: ${yesNo(isYes)}`, x + 10, y + 4, { width: w - 20 });
+
+  doc.restore();
   doc.fillColor("#111827");
 }
 
@@ -65,15 +88,23 @@ function buildPdfReport(result) {
 
     const picked = pickOneScreenshot(result);
 
-    doc.fontSize(18).fillColor("#111827").text("Relatório - Login Page Scanner (1 página)");
+    // ===== header mais bonito (sem mudar layout geral) =====
+    doc.fontSize(18).fillColor("#111827").text("Relatório - LoySentinel");
     doc.fontSize(10).fillColor("#6b7280").text(`URL: ${safeText(result.url)}`);
     doc.fontSize(10).fillColor("#6b7280").text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`);
     doc.moveDown(0.8);
 
     const y0 = doc.y;
-    drawBadge(doc, "Login provável", !!s.loginLikely, 40, y0, 160);
-    drawBadge(doc, "Captcha/Challenge", !!s.captchaLikely, 210, y0, 180);
-    drawBadge(doc, "Só no headless", !!s.captchaOnlyWhenBotLike, 400, y0, 155);
+
+    // ✅ Login provável: SIM = verde, NÃO = vermelho (normal)
+    drawBadge(doc, "Login provável", !!s.loginLikely, 40, y0, 160, { theme: "normal" });
+
+    // ✅ Captcha/Challenge: SIM = vermelho, NÃO = verde (dangerYes)
+    drawBadge(doc, "Captcha/Challenge", !!s.captchaLikely, 210, y0, 180, { theme: "dangerYes" });
+
+    // ✅ Só no headless: SIM = vermelho, NÃO = verde (dangerYes)
+    drawBadge(doc, "Só no headless", !!s.captchaOnlyWhenBotLike, 400, y0, 155, { theme: "dangerYes" });
+
     doc.moveDown(2);
 
     doc.fontSize(13).fillColor("#111827").text("Resumo");
@@ -83,7 +114,7 @@ function buildPdfReport(result) {
     addKV(doc, "Modos detectados (Headed)", headedModes);
     addKV(doc, "Modos detectados (Headless)", headlessModes);
 
-    // ✅ Extra: teclado virtual no resumo, se existir
+    // ✅ Extra: teclado virtual no resumo, se existir (mantém como estava)
     const vk = !!s.virtualKeyboardLikely || !!s.typingBlockedLikely;
     addKV(doc, "Teclado virtual/digitação bloqueada", vk ? "SIM" : "NÃO");
 
@@ -96,8 +127,28 @@ function buildPdfReport(result) {
     if (picked.screenshot?.data) {
       try {
         const buf = Buffer.from(picked.screenshot.data, "base64");
-        doc.image(buf, 40, doc.y, { fit: [515, 360], align: "center" });
-        doc.y = doc.y + 370;
+
+        // ✅ “moldura” mais bonita sem mudar a regra de 1 página
+        const x = 40;
+        const y = doc.y;
+        const w = 515;
+        const h = 360;
+
+        // sombra leve
+        doc.save();
+        doc.roundedRect(x + 2, y + 2, w, h, 10).fillOpacity(0.10).fill("#000000");
+        doc.restore();
+
+        // fundo + borda
+        doc.save();
+        doc.roundedRect(x, y, w, h, 10).fill("#f8fafc");
+        doc.lineWidth(1).strokeColor("#e5e7eb").roundedRect(x, y, w, h, 10).stroke();
+        doc.restore();
+
+        // imagem dentro, com padding
+        doc.image(buf, x + 8, y + 8, { fit: [w - 16, h - 16], align: "center" });
+
+        doc.y = y + h + 10;
       } catch {
         doc.fontSize(10).fillColor("#991b1b").text("Falha ao renderizar o screenshot no PDF.");
       }

@@ -6,7 +6,9 @@ const CAPTCHA_PROVIDERS = [
   { name: "Turnstile", dom: [/turnstile/i, /cf-turnstile/i], net: [/challenges\.cloudflare\.com/i] },
 ];
 
-function uniq(arr) { return [...new Set((arr || []).filter(Boolean))]; }
+function uniq(arr) {
+  return [...new Set((arr || []).filter(Boolean))];
+}
 
 function detectProvidersFrom(domText, netUrls) {
   const found = [];
@@ -22,19 +24,21 @@ async function collectNetwork(page, fn) {
   const urls = [];
   const onReq = (req) => urls.push(req.url());
   page.on("request", onReq);
-  try { await fn(); } finally { page.off("request", onReq); }
+  try {
+    await fn();
+  } finally {
+    page.off("request", onReq);
+  }
   return urls;
 }
 
-async function detectVirtualKeyboardSignals(page) {
-  // Heurística melhor:
-  // - input password readonly/disabled
-  // - inputmode=none
-  // - após clicar no password: aparece overlay/dialog com muitos botões (0-9) ou keypad
-  // - presença de containers conhecidos (keyboard, keypad, tec, pinpad)
+/**
+ * Coleta sinais no DOM (sem clicar).
+ * Isso é estável e barato.
+ */
+async function detectVirtualKeyboardSignalsDOM(page) {
   return await page.evaluate(async () => {
     const hints = [];
-
     const q = (sel) => Array.from(document.querySelectorAll(sel));
 
     const pass = document.querySelector('input[type="password"]') || null;
@@ -47,16 +51,10 @@ async function detectVirtualKeyboardSignals(page) {
       if (ro) hints.push("passwordReadonly");
       if (dis) hints.push("passwordDisabled");
       if (im === "none") hints.push("inputmodeNone");
-
-      // tenta focar/clicar
-      try { pass.focus(); } catch {}
-      try { pass.click(); pass.click(); } catch {}
+    } else {
+      hints.push("noPasswordInputFound");
     }
 
-    // Espera curtinha para overlays renderizarem
-    await new Promise(r => setTimeout(r, 250));
-
-    // seletor de teclados/keypads comuns
     const keyboardSelectors = [
       '[class*="keyboard"]', '[id*="keyboard"]',
       '[class*="keypad"]', '[id*="keypad"]',
@@ -69,35 +67,151 @@ async function detectVirtualKeyboardSignals(page) {
     const keyboardNodes = keyboardSelectors.flatMap(sel => q(sel));
     if (keyboardNodes.length) hints.push(`keyboardNodes:${keyboardNodes.length}`);
 
-    // Contar botões numéricos visíveis (0-9), típico de teclado virtual
     const btns = q("button, [role='button'], a, div");
     const numericVisible = btns.filter(el => {
       const txt = (el.innerText || el.textContent || "").trim();
       if (!txt) return false;
       if (!/^[0-9]$/.test(txt)) return false;
       const r = el.getBoundingClientRect();
-      return r.width >= 18 && r.height >= 18; // ignora lixo
+      return r.width >= 18 && r.height >= 18;
     });
     if (numericVisible.length >= 8) hints.push(`numericKeypad:${numericVisible.length}`);
 
-    // overlay/dialog depois do click
     const dialogs = q('[role="dialog"], .modal, [class*="modal"], [class*="overlay"], [id*="overlay"]');
     if (dialogs.length) hints.push(`overlayOrDialog:${dialogs.length}`);
 
-    // sinais de "digite sua senha pelo teclado virtual"
     const bodyText = (document.body?.innerText || "").toLowerCase();
     if (bodyText.includes("teclado virtual")) hints.push("textTecladoVirtual");
     if (bodyText.includes("digite sua senha")) hints.push("textDigiteSuaSenha");
 
-    // decisão final: se tem hints fortes, marca como virtual keyboard
     const strong =
-      hints.some(h => h.startsWith("passwordReadonly")) ||
-      hints.some(h => h.startsWith("inputmodeNone")) ||
+      hints.some(h => h === "passwordReadonly") ||
+      hints.some(h => h === "inputmodeNone") ||
       hints.some(h => h.startsWith("numericKeypad")) ||
       hints.some(h => h.startsWith("keyboardNodes"));
 
     return { virtualKeyboardLikely: !!strong, hints };
   });
+}
+
+/**
+ * Faz um teste real de clique (Playwright) para provar se “abre teclado”.
+ * Retorna métricas antes/depois do clique e hints.
+ */
+async function detectVirtualKeyboardByClick(page) {
+  const result = {
+    attempted: false,
+    clicked: false,
+    reason: null,
+    before: null,
+    after: null,
+    delta: null,
+    hints: [],
+  };
+
+  // métrica DOM (antes/depois) para comprovar mudança
+  const snapshot = async () => {
+    return await page.evaluate(() => {
+      const q = (sel) => Array.from(document.querySelectorAll(sel));
+      const keyboardSelectors = [
+        '[class*="keyboard"]', '[id*="keyboard"]',
+        '[class*="keypad"]', '[id*="keypad"]',
+        '[class*="pinpad"]', '[id*="pinpad"]',
+        '[class*="teclado"]', '[id*="teclado"]',
+        '[class*="senha"] [class*="tecla"]',
+        '[aria-label*="tecla"]', '[data-key]', '[data-keycode]',
+      ];
+
+      const keyboardNodes = keyboardSelectors.flatMap(sel => q(sel));
+
+      const btns = q("button, [role='button'], a, div");
+      const numericVisible = btns.filter(el => {
+        const txt = (el.innerText || el.textContent || "").trim();
+        if (!txt) return false;
+        if (!/^[0-9]$/.test(txt)) return false;
+        const r = el.getBoundingClientRect();
+        return r.width >= 18 && r.height >= 18;
+      });
+
+      const dialogs = q('[role="dialog"], .modal, [class*="modal"], [class*="overlay"], [id*="overlay"]');
+
+      return {
+        keyboardNodes: keyboardNodes.length,
+        numericVisible: numericVisible.length,
+        overlays: dialogs.length,
+      };
+    });
+  };
+
+  // 1) acha input password
+  const pass = page.locator('input[type="password"]').first();
+  const passCount = await pass.count().catch(() => 0);
+  if (!passCount) {
+    result.reason = "noPasswordInput";
+    return result;
+  }
+
+  result.attempted = true;
+
+  // 2) tenta clicar no próprio campo senha (muitos teclados abrem assim)
+  result.before = await snapshot();
+
+  try {
+    await pass.scrollIntoViewIfNeeded().catch(() => {});
+    await pass.click({ timeout: 8000 });
+    result.clicked = true;
+    result.hints.push("clickedPasswordInput");
+  } catch (e) {
+    result.hints.push("passwordClickFailed");
+  }
+
+  // 3) fallback: tenta achar um ícone/botão próximo que pareça “teclado”
+  if (!result.clicked) {
+    try {
+      const candidate = page.locator(
+        [
+          'text=/teclado virtual/i',
+          '[title*="teclado" i]',
+          '[aria-label*="teclado" i]',
+          '[class*="teclado" i]',
+          '[id*="teclado" i]',
+          'img[alt*="teclado" i]',
+        ].join(",")
+      ).first();
+
+      if (await candidate.count().catch(() => 0)) {
+        await candidate.click({ timeout: 8000 });
+        result.clicked = true;
+        result.hints.push("clickedKeyboardCandidate");
+      } else {
+        result.hints.push("noKeyboardCandidateFound");
+      }
+    } catch {
+      result.hints.push("keyboardCandidateClickFailed");
+    }
+  }
+
+  // 4) espera curta para renderizar overlay
+  await page.waitForTimeout(350);
+
+  result.after = await snapshot();
+  result.delta = {
+    keyboardNodes: (result.after.keyboardNodes || 0) - (result.before.keyboardNodes || 0),
+    numericVisible: (result.after.numericVisible || 0) - (result.before.numericVisible || 0),
+    overlays: (result.after.overlays || 0) - (result.before.overlays || 0),
+  };
+
+  // 5) prova de que “abriu”
+  const openedLikely =
+    result.delta.keyboardNodes >= 1 ||
+    result.delta.numericVisible >= 5 ||
+    result.delta.overlays >= 1;
+
+  if (!openedLikely) {
+    result.reason = "clickDidNotRevealKeyboard";
+  }
+
+  return { ...result, openedLikely };
 }
 
 async function analyzeOneState(page, mode) {
@@ -124,8 +238,19 @@ async function analyzeOneState(page, mode) {
     twoFactorHints.push("twoFactorText");
   }
 
-  // teclado virtual/bloqueio
-  const vk = await detectVirtualKeyboardSignals(page);
+  // teclado virtual (DOM + clique real)
+  const vkDom = await detectVirtualKeyboardSignalsDOM(page);
+  const vkClick = await detectVirtualKeyboardByClick(page);
+
+  // decisão final: clique tem prioridade; senão, usa DOM
+  const virtualKeyboardLikely = !!(vkClick?.openedLikely || vkDom?.virtualKeyboardLikely);
+
+  const typingHints = uniq([
+    ...(vkDom?.hints || []),
+    ...(vkClick?.hints || []),
+    vkClick?.openedLikely ? "clickRevealedKeyboard" : null,
+    vkClick?.reason ? `clickReason:${vkClick.reason}` : null,
+  ]);
 
   return {
     mode,
@@ -149,8 +274,9 @@ async function analyzeOneState(page, mode) {
       hints: twoFactorHints,
     },
     typing: {
-      virtualKeyboardLikely: !!vk.virtualKeyboardLikely,
-      hints: vk.hints || [],
+      virtualKeyboardLikely,
+      hints: typingHints,
+      clickTest: vkClick, // <<< deixa isso para debug (você pode ocultar no PDF se quiser)
     },
   };
 }
@@ -172,7 +298,7 @@ async function runPass({ url, headless }) {
   try {
     netUrls = await collectNetwork(page, async () => {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-      await page.waitForTimeout(750); // dá tempo de carregar scripts do challenge
+      await page.waitForTimeout(750);
     });
   } catch (e) {
     errors.push(`goto: ${e?.message || e}`);
@@ -184,13 +310,12 @@ async function runPass({ url, headless }) {
 
     const html = await page.content().catch(() => "");
     const providers = detectProvidersFrom(html, netUrls);
-    const netProviders = detectProvidersFrom("", netUrls); // simplificado
+    const netProviders = detectProvidersFrom("", netUrls);
 
     st.captcha.providers = providers;
     st.captcha.evidence.domProviders = providers;
     st.captcha.evidence.networkProviders = netProviders;
 
-    // presente se DOM ou network ou palavra captcha
     st.captcha.present = !!(providers.length || netProviders.length || st.captcha.evidence.challengeHints.length);
 
     states.push(st);
@@ -204,8 +329,6 @@ async function runPass({ url, headless }) {
     try {
       const buf = await page.screenshot({ fullPage: true, timeout: 90000 });
       screenshot = { ok: true, format: "data:image/png;base64", data: buf.toString("base64") };
-
-      // ✅ também anexa no state Default para o pdfReport antigo não falhar
       if (states[0]) states[0].screenshot = screenshot;
     } catch (e) {
       screenshot = { ok: false, reason: `Screenshot indisponível: ${e?.message || e}` };
@@ -258,7 +381,7 @@ async function scanHandler(req, res) {
     title: headed.states?.[0]?.title || "",
     timingMs: Date.now() - t0,
     summary,
-    screenshot: headed.screenshot, // mantém no topo também
+    screenshot: headed.screenshot,
     passes: {
       headed: { timingMs: headed.timingMs, states: headed.states, errors: headed.errors },
       headless: { timingMs: headless.timingMs, states: headless.states, errors: headless.errors },
@@ -266,4 +389,5 @@ async function scanHandler(req, res) {
   });
 }
 
-module.exports = { scanHandler };
+// ✅ AGORA EXPORTA O runPass TAMBÉM (pra debug-scan.js funcionar)
+module.exports = { scanHandler, runPass };

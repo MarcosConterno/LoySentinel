@@ -190,6 +190,8 @@
       border-radius: 14px;
       background: rgba(255, 255, 255, .04);
       padding: 12px;
+      position: relative; /* ✅ tooltip vai ficar dentro desta "caixa" */
+      overflow: hidden;   /* ✅ garante que hint não vaze para fora */
     }
 
     .stateHeader { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -214,15 +216,17 @@
       cursor: help;
       position: relative;
       flex: 0 0 auto;
+      user-select: none;
     }
 
-    .infoDot::after {
-      content: attr(data-tip);
+    /* ✅ NOVO: hint real como elemento, sempre dentro da "caixa" (stateItem/inner/jsonBox/etc.) */
+    .hintBubble {
       position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: 135%;
-      width: min(420px, 70vw);
+      left: 12px;
+      top: 12px;
+      width: calc(100% - 24px);
+      max-height: 180px;
+      overflow: auto;
       padding: 10px 12px;
       border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, .12);
@@ -232,27 +236,28 @@
       font-size: 12px;
       line-height: 1.35;
       box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+      z-index: 9999;
       opacity: 0;
+      transform: translateY(-4px);
       pointer-events: none;
-      transition: opacity 120ms ease;
-      z-index: 9999;
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+
+    .hintBubble.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .hintBubble .hintTitle {
+      font-weight: 950;
+      margin-bottom: 6px;
+      color: #ffffff;
+    }
+
+    .hintBubble .hintText {
       white-space: normal;
+      word-break: break-word;
     }
-
-    .infoDot::before {
-      content: "";
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: 118%;
-      border: 7px solid transparent;
-      border-top-color: #0b0f1a;
-      opacity: 0;
-      transition: opacity 120ms ease;
-      z-index: 9999;
-    }
-
-    .infoDot:hover::after, .infoDot:hover::before { opacity: 1; }
 
     /* json viewer (NEW: estilo jsonviewer.stack.hu) */
     .jsonBox {
@@ -260,6 +265,7 @@
       background: rgba(255, 255, 255, .04);
       border-radius: 16px;
       overflow: hidden;
+      position: relative; /* ✅ tooltip dentro da caixa JSON */
     }
 
     .jsonTop {
@@ -303,6 +309,9 @@
     .null { color: #a78bfa; }
 
     .smallNote { font-size: 12px; color: var(--muted); font-weight: 650; margin-top: 8px; }
+
+    /* ✅ permite tooltip dentro dos containers principais sem “cortar” */
+    .inner { position: relative; }
   </style>
 </head>
 
@@ -446,10 +455,128 @@
         .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
     }
 
+    // ✅ Mantém o infoDot simples (sem pseudo-elemento).
+    // O hint agora é um elemento real, criado via JS, dentro da "caixa" correta.
     function tip(text) {
-      const safe = String(text || "").replaceAll('"', "&quot;");
-      return `<span class="infoDot" data-tip="${safe}">i</span>`;
+      const safe = escapeHtml(String(text || ""));
+      return `<span class="infoDot" data-tip="${safe}" aria-label="info">i</span>`;
     }
+
+    // ===== hint manager (NEW) =====
+    let _activeHint = null;
+    let _activeHintHost = null;
+
+    function getHintHost(el) {
+      // ✅ tenta manter o hint "dentro da caixa" onde o ícone está
+      return el.closest(".stateItem") ||
+             el.closest(".jsonBox") ||
+             el.closest(".inner") ||
+             el.closest(".card") ||
+             document.body;
+    }
+
+    function showHint(dot) {
+      const tipText = dot.getAttribute("data-tip") || "";
+      if (!tipText) return;
+
+      const host = getHintHost(dot);
+      if (!host) return;
+
+      // remove hint anterior
+      hideHint();
+
+      // cria bubble
+      const bubble = document.createElement("div");
+      bubble.className = "hintBubble";
+      bubble.innerHTML = `
+        <div class="hintTitle">Explicação</div>
+        <div class="hintText">${tipText}</div>
+      `;
+
+      // posiciona dentro do host e limita para não sair
+      // host precisa ser "relative" para posicionamento absoluto
+      const prevPos = host.style.position;
+      if (!prevPos || prevPos === "static") host.style.position = "relative";
+
+      host.appendChild(bubble);
+
+      const hostRect = host.getBoundingClientRect();
+      const dotRect = dot.getBoundingClientRect();
+
+      // largura: sempre dentro da caixa
+      const padding = 12;
+      const maxW = Math.max(220, hostRect.width - (padding * 2));
+      bubble.style.width = (maxW) + "px";
+      bubble.style.left = padding + "px";
+
+      // tenta colocar acima do dot; se não couber, coloca abaixo.
+      // top dentro do host:
+      const dotCenterY = (dotRect.top - hostRect.top) + (dotRect.height / 2);
+      const preferTop = dotCenterY - 10; // ponto de referência
+      // medição depois de anexar
+      const bRect = bubble.getBoundingClientRect();
+      const bH = bRect.height;
+
+      let top = (dotRect.top - hostRect.top) - bH - 10; // acima
+      const minTop = padding;
+      const maxTop = hostRect.height - bH - padding;
+
+      if (top < minTop) {
+        // abaixo
+        top = (dotRect.bottom - hostRect.top) + 10;
+      }
+
+      // clamp final
+      if (top < minTop) top = minTop;
+      if (top > maxTop) top = Math.max(minTop, maxTop);
+
+      bubble.style.top = top + "px";
+
+      // se host for pequeno, limita altura e scroll interno
+      const maxH = Math.max(120, Math.min(220, hostRect.height - (padding * 2)));
+      bubble.style.maxHeight = maxH + "px";
+
+      // mostra
+      requestAnimationFrame(() => bubble.classList.add("show"));
+
+      _activeHint = bubble;
+      _activeHintHost = host;
+    }
+
+    function hideHint() {
+      if (_activeHint) {
+        const b = _activeHint;
+        b.classList.remove("show");
+        // remove rápido
+        setTimeout(() => {
+          if (b && b.parentNode) b.parentNode.removeChild(b);
+        }, 90);
+      }
+      _activeHint = null;
+      _activeHintHost = null;
+    }
+
+    // Delegação global: qualquer .infoDot funciona (inclusive summary)
+    document.addEventListener("mouseover", (e) => {
+      const dot = e.target && e.target.classList && e.target.classList.contains("infoDot") ? e.target : null;
+      if (dot) showHint(dot);
+    });
+
+    document.addEventListener("mouseout", (e) => {
+      const dot = e.target && e.target.classList && e.target.classList.contains("infoDot") ? e.target : null;
+      if (dot) hideHint();
+    });
+
+    // fallback: clique fecha
+    document.addEventListener("click", (e) => {
+      const isDot = e.target && e.target.classList && e.target.classList.contains("infoDot");
+      if (!isDot && _activeHint) hideHint();
+    });
+
+    // ESC fecha
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") hideHint();
+    });
 
     // ===== summary =====
     function badgeWithHint(label, value, hint, yesClass = "ok", noClass = "no") {
@@ -492,10 +619,11 @@
             ? "Risco médio: captcha presente. Pode exigir tratamento de challenge."
             : "Risco baixo: sem sinais fortes nesta tela. Ainda pode haver bloqueios em etapas seguintes.";
 
-      const bCaptcha = badgeWithHint("Existe Captcha?", existsCaptcha, hintCaptcha);
-      const bHidden = badgeWithHint("Captcha escondido?", hiddenCaptcha, hintHidden);
-      const bVK = badgeWithHint("Necessário teclado virtual?", needsVirtualKeyboard, hintVK);
-      const bRisk = `<span class="badge ${riskClass}">Risco de automação? ${risk} ${tip(hintRisk)}</span>`;
+      // ✅ cores corretas (SIM = vermelho) para os itens de risco
+      const bCaptcha = badgeWithHint("Existe Captcha?", existsCaptcha, hintCaptcha, "no", "ok");
+      const bHidden  = badgeWithHint("Captcha escondido?", hiddenCaptcha, hintHidden, "no", "ok");
+      const bVK      = badgeWithHint("Necessário teclado virtual?", needsVirtualKeyboard, hintVK, "no", "ok");
+      const bRisk    = `<span class="badge ${riskClass}">Risco de automação? ${risk} ${tip(hintRisk)}</span>`;
 
       $("summaryBadges").innerHTML = [bCaptcha, bHidden, bVK, bRisk].join("");
 
@@ -701,7 +829,6 @@
       closing.className = "jv-line";
       for (let i = 0; i < depth; i++) closing.appendChild(makeSpan("jv-indent", ""));
       closing.appendChild(makeSpan("jv-brace", closeBrace + (isLast ? "" : ",")));
-      // closing fica visível sempre (como jsonviewer)
       wrap.appendChild(closing);
 
       _jvAllToggles.push({ toggle, children });
@@ -732,10 +859,7 @@
 
         const childType = typeOf(childVal);
         if (childType === "object" || childType === "array") {
-          // node wrapper for nested objects/arrays
-          const nested = buildTree(childVal, depth + 1, lastChild, depth < 1); // abre os primeiros níveis
-          // nested retorna um div com header/children/closing
-          // aqui queremos inserir inline, então só anexamos
+          const nested = buildTree(childVal, depth + 1, lastChild, depth < 1);
           row.appendChild(nested);
         } else {
           row.appendChild(valueNode(childVal));
@@ -795,7 +919,7 @@
         renderStates(data);
         renderSummary(data);
         renderMainScreenshot(data);
-        renderJsonViewer(data); // agora mostra o payload completo (como jsonviewer)
+        renderJsonViewer(data);
 
         lastJson = data;
       } catch (e) {
@@ -850,6 +974,7 @@
     });
 
     $("btnReset").addEventListener("click", () => {
+      hideHint(); // ✅ limpa hint aberto
       $("url").value = "";
       $("login").value = "";
       $("senha").value = "";
